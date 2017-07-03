@@ -153,7 +153,7 @@ class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
-        self.cflags += ["-xhost"]
+        self.cflags += ["-xhost", "-vec-threshold0"]
         if configuration['platform'] == 'skx':
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]
