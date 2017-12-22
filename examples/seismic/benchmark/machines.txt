@@ -4,31 +4,40 @@
 
 ###########################################
 
-# KNL (Endeavour, shortened as edv)
+# KNL 7250 (FLAT MODE)
 # ---------------
-# machine peak: 1.4 Ghz * 68 cores * 16 flots/avx512_register * 2 avx units * 2[fma] = 6093 SP-GFlops/s
+# machine peak: 1.6 Ghz * 68 cores * 16 flots/avx512_register * 2 avx units * 2[fma] = 6963 SP-GFlops/s
 # stream triad:
 #     68 threads
 #     MCDRAM: 475 GB/s
 #     DDR4: 87 GB/s
 
-edv_ekf_flat_1 = {
-    'machine-peak': 6093,
+knl7250 = {
+    'machine-peak': 6963,
+    'linpack-peak': 6963,  # To fix
     'dram-stream-bw': 475,  # Hack, actually DRAM BW is 87
     'mcdram-stream-bw': 475
 }
 
-edv_ekf_flat_2 = edv_ekf_flat_1
-edv_ekf_flat_4 = edv_ekf_flat_1
 
-edv_ekf_cache_1 = {
-    'machine-peak': 6093,
-    'dram-stream-bw': 310,
-    'mcdram-stream-bw': 475
+# SKL 6148 ("skl1")
+# ---------------
+
+skl6148 = {
+    'machine-peak': 3072,
+    'linpack-peak': 2273,
+    'dram-stream-bw': 98
 }
 
-edv_ekf_cache_2 = edv_ekf_cache_1
-edv_ekf_cache_4 = edv_ekf_cache_1
+
+# SKL 8180 ("skl3")
+# ---------------
+
+skl8180 = {
+    'machine-peak': 4480,
+    'linpack-peak': 3285,
+    'dram-stream-bw': 104
+}
 
 
 # BDW (Endeavour)
@@ -37,21 +46,10 @@ edv_ekf_cache_4 = edv_ekf_cache_1
 # stream triad:
 #     RAM: 65 GB/s
 
-edv_bdwb = {
+bdw2697 = {
     'machine-peak': 1325,
+    'linpack-peak': None,
     'dram-stream-bw': 65
-}
-
-
-# SKL (Endeavour)
-# ---------------
-# machine peak:  2.4 Ghz * 20 cores * 8 floats/avx2_register * 2 avx units * 2[fma] = 1536 SP-GFlops/s
-# stream triad:
-#     RAM: GB/s
-
-edv_skl = {
-    'machine-peak': 1536,
-    'dram-stream-bw': 92
 }
 
 
@@ -61,7 +59,8 @@ edv_skl = {
 # stream triad:
 #     RAM: 31 GB/s
 
-hero_bdwb = {
+bdw2620 = {
     'machine-peak': 537,
+    'linpack-peak': None,
     'dram-stream-bw': 31
 }
