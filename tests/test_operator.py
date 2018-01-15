@@ -26,7 +26,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     and "indexed" API."""
     assert(mode in ['function', 'indexed'])
     s = Function(name=name, dimensions=dimensions, shape=shape)
-    s.data[:] = value
+    s.data_allocated[:] = value
     return s.indexify() if mode == 'indexed' else s
 
 
@@ -161,10 +161,10 @@ class TestArithmetic(object):
     def test_indexed_increment(self, expr, result):
         """Tests point-wise increments with stencil offsets in one dimension"""
         j, l = dimify('j l')
-        a = symbol(name='a', dimensions=(j, l), value=2., shape=(5, 6),
+        a = symbol(name='a', dimensions=(j, l), value=1., shape=(5, 6),
                    mode='indexed').base
         fa = a.function
-        fa.data[1:, 1:] = 0
+        fa.data[:] = 0.
 
         eqn = eval(expr)
         Operator(eqn)(a=fa)
@@ -1022,10 +1022,10 @@ class TestLoopScheduler(object):
         p_aux = Dimension(name='p_aux')
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
-        b.data[:] = 1.0
+        b.data_allocated[:] = 1.0
         b2 = Function(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
                       space_order=2)
-        b2.data[:] = 1.0
+        b2.data_allocated[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
                 Eq(b, time*b*a + b)]
         eqns2 = [Eq(a.forward, a.laplace + 1.),
@@ -1042,7 +1042,7 @@ class TestLoopScheduler(object):
 
         # Verify both operators produce the same result
         op(time=10)
-        a.data[:] = 0.
+        a.data_allocated[:] = 0.
         op2(time=10)
 
         for i in range(10):
