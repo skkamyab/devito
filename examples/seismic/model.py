@@ -263,27 +263,40 @@ def demo_model(preset, **kwargs):
 def damp_boundary(damp, nbpml, spacing):
     """Initialise damping field with an absorbing PML layer.
 
-    :param damp: Array data defining the damping field
-    :param nbpml: Number of points in the damping layer
-    :param spacing: Grid spacing coefficent
+    :param damp: The :class:`Function` for the damping field.
+    :param nbpml: Number of points in the damping layer.
+    :param spacing: Grid spacing coefficent.
     """
     dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
-    ndim = len(damp.shape)
-    for i in range(nbpml):
+    assert all(damp._offset_domain[0] == i for i in damp._offset_domain)
+    for i in range(nbpml + damp._offset_domain.left[0]):
         pos = np.abs((nbpml - i + 1) / float(nbpml))
         val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if ndim == 2:
-            damp[i, :] += val/spacing[0]
-            damp[-(i + 1), :] += val/spacing[0]
-            damp[:, i] += val/spacing[1]
-            damp[:, -(i + 1)] += val/spacing[1]
+        if damp.ndim == 2:
+            damp.data_allocated[i, :] += val/spacing[0]
+            damp.data_allocated[-(i + 1), :] += val/spacing[0]
+            damp.data_allocated[:, i] += val/spacing[1]
+            damp.data_allocated[:, -(i + 1)] += val/spacing[1]
         else:
-            damp[i, :, :] += val/spacing[0]
-            damp[-(i + 1), :, :] += val/spacing[0]
-            damp[:, i, :] += val/spacing[1]
-            damp[:, -(i + 1), :] += val/spacing[1]
-            damp[:, :, i] += val/spacing[2]
-            damp[:, :, -(i + 1)] += val/spacing[2]
+            damp.data_allocated[i, :, :] += val/spacing[0]
+            damp.data_allocated[-(i + 1), :, :] += val/spacing[0]
+            damp.data_allocated[:, i, :] += val/spacing[1]
+            damp.data_allocated[:, -(i + 1), :] += val/spacing[1]
+            damp.data_allocated[:, :, i] += val/spacing[2]
+            damp.data_allocated[:, :, -(i + 1)] += val/spacing[2]
+
+
+def initialize_function(function, data, nbpml):
+    """Initialize a :class:`Function` with the given ``data``. ``data``
+    does *not* include the PML layers for the absorbing boundary conditions;
+    these are added via padding by this method.
+
+    :param function: The :class:`Function` to be initialised with some data.
+    :param data: The data array used for initialisation.
+    :param nbpml: Number of PML layers for boundary damping.
+    """
+    pad_list = [(nbpml + i.left, nbpml + i.right) for i in function._offset_domain]
+    function.data_allocated[:] = np.pad(data, pad_list, 'edge')
 
 
 class Model(object):
@@ -329,7 +342,7 @@ class Model(object):
 
         # Create dampening field as symbol `damp`
         self.damp = Function(name="damp", grid=self.grid)
-        damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
+        damp_boundary(self.damp, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -337,10 +350,10 @@ class Model(object):
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
                 self.epsilon = Function(name="epsilon", grid=self.grid)
-                self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
+                initialize_function(self.epsilon, 1 + 2 * epsilon, self.nbpml)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
-                if np.max(self.epsilon.data) > 0:
-                    self.scale = np.sqrt(np.max(self.epsilon.data))
+                if np.max(self.epsilon.data_allocated) > 0:
+                    self.scale = np.sqrt(np.max(self.epsilon.data_allocated))
             else:
                 self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
@@ -350,7 +363,7 @@ class Model(object):
         if delta is not None:
             if isinstance(delta, np.ndarray):
                 self.delta = Function(name="delta", grid=self.grid)
-                self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
+                initialize_function(self.delta, np.sqrt(1 + 2 * delta), self.nbpml)
             else:
                 self.delta = delta
         else:
@@ -359,7 +372,7 @@ class Model(object):
         if theta is not None:
             if isinstance(theta, np.ndarray):
                 self.theta = Function(name="theta", grid=self.grid)
-                self.theta.data[:] = self.pad(theta)
+                initialize_function(self.theta, theta, self.nbpml)
             else:
                 self.theta = theta
         else:
@@ -368,7 +381,7 @@ class Model(object):
         if phi is not None:
             if isinstance(phi, np.ndarray):
                 self.phi = Function(name="phi", grid=self.grid)
-                self.phi.data[:] = self.pad(phi)
+                initialize_function(self.phi, phi, self.nbpml)
             else:
                 self.phi = phi
         else:
@@ -446,14 +459,6 @@ class Model(object):
 
         # Update the square slowness according to new value
         if isinstance(vp, np.ndarray):
-            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+            initialize_function(self.m, 1 / (self.vp * self.vp), self.nbpml)
         else:
             self.m.data = 1 / vp**2
-
-    def pad(self, data):
-        """Padding function PNL layers in every direction for for the
-        absorbing boundary conditions.
-
-        :param data : Data array to be padded"""
-        pad_list = [(self.nbpml, self.nbpml) for _ in self.shape]
-        return np.pad(data, pad_list, 'edge')
