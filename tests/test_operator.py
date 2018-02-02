@@ -65,7 +65,7 @@ class TestCodeGen(object):
         ('Eq(u.forward,u+1)', 1, 1, 'Eq(u[t,x+1,y+1,z+1],u[t-1,x+1,y+1,z+1]+1)'),
         ('Eq(u.forward,u+1)', 1, 2, 'Eq(u[t,x+1,y+1,z+1],u[t-1,x+1,y+1,z+1]+1)'),
         ('Eq(u.forward,u+u.backward + m)', 8, 2,
-         'Eq(u[t,x+4,y+4,z+4],m[x,y,z]+u[t-2,x+4,y+4,z+4]+u[t-1,x+4,y+4,z+4])')
+         'Eq(u[t,x+8,y+8,z+8],m[x,y,z]+u[t-2,x+8,y+8,z+8]+u[t-1,x+8,y+8,z+8])')
     ])
     def test_index_shifting(self, expr, so, to, expected):
         """Tests that array accesses get properly shifted based on the halo and
@@ -84,10 +84,10 @@ class TestCodeGen(object):
 
     @pytest.mark.parametrize('so, to, padding, expected', [
         (0, 1, 0, '(float(*)[x_size][y_size][z_size])u_vec'),
-        (2, 1, 0, '(float(*)[x_size+1+1][y_size+1+1][z_size+1+1])u_vec'),
-        (4, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec'),
-        (4, 3, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec'),
-        (4, 1, 3, '(float(*)[x_size+2+2+3+3][y_size+2+2+3+3][z_size+2+2+3+3])u_vec'),
+        (2, 1, 0, '(float(*)[x_size+2+2][y_size+2+2][z_size+2+2])u_vec'),
+        (4, 1, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
+        (4, 3, 0, '(float(*)[x_size+4+4][y_size+4+4][z_size+4+4])u_vec'),
+        (4, 1, 3, '(float(*)[x_size+3+3+4+4][y_size+3+3+4+4][z_size+3+3+4+4])u_vec'),
         ((2, 5, 2), 1, 0, '(float(*)[x_size+2+5][y_size+2+5][z_size+2+5])u_vec'),
         ((2, 5, 4), 1, 3,
          '(float(*)[x_size+3+3+4+5][y_size+3+3+4+5][z_size+3+3+4+5])u_vec'),
@@ -354,9 +354,9 @@ class TestArguments(object):
         op = Operator(Eq(g, g + f))
 
         expected = {
-            'x_size': 5, 'x_s': 0, 'x_e': 5,
-            'y_size': 6, 'y_s': 0, 'y_e': 6,
-            'z_size': 7, 'z_s': 0, 'z_e': 7,
+            'x_size': 5, 'x_s': 0, 'x_e': 4,
+            'y_size': 6, 'y_s': 0, 'y_e': 5,
+            'z_size': 7, 'z_s': 0, 'z_e': 6,
             'f': f.data_allocated, 'g': g.data_allocated,
         }
         self.verify_arguments(op.arguments(time=4), expected)
@@ -380,9 +380,9 @@ class TestArguments(object):
         expected = {
             's': s.data, 's_coords': s.coordinates.data,
             # Default dimensions of the sparse data
-            'p_s_size': 3, 'p_s_s': 0, 'p_s_e': 3,
-            'd_size': 3, 'd_s': 0, 'd_e': 3,
-            'time_size': 4, 'time_s': 0, 'time_e': 4,
+            'p_s_size': 3, 'p_s_s': 0, 'p_s_e': 2,
+            'd_size': 3, 'd_s': 0, 'd_e': 2,
+            'time_size': 4, 'time_s': 0, 'time_e': 3,
         }
         self.verify_arguments(op.arguments(), expected)
 
@@ -414,8 +414,10 @@ class TestArguments(object):
         self.verify_arguments(arguments, expected)
         # Verify execution
         op(**args)
-        assert (g.data[3:, 4:, 5:] == 0.).all()
-        assert (g.data[:3, :4, :5] == 1.).all()
+        assert (g.data[4:] == 0.).all()
+        assert (g.data[:, 5:] == 0.).all()
+        assert (g.data[:, :, 6:] == 0.).all()
+        assert (g.data[:4, :5, :6] == 1.).all()
 
     def test_override_function_subrange(self):
         """
@@ -437,9 +439,9 @@ class TestArguments(object):
         # Verify execution
         op(**args)
         mask = np.ones((5, 6, 7), dtype=np.bool)
-        mask[1:3, 2:4, 3:5] = False
+        mask[1:4, 2:5, 3:6] = False
         assert (g.data[mask] == 0.).all()
-        assert (g.data[1:3, 2:4, 3:5] == 1.).all()
+        assert (g.data[1:4, 2:5, 3:6] == 1.).all()
 
     def test_override_timefunction_subrange(self):
         """
@@ -468,9 +470,9 @@ class TestArguments(object):
         # Verify execution
         op(**args)
         mask = np.ones((1, 5, 6, 7), dtype=np.bool)
-        mask[:, 1:3, 2:4, 3:5] = False
+        mask[:, 1:4, 2:5, 3:6] = False
         assert (f.data[mask] == 0.).all()
-        assert (f.data[:, 1:3, 2:4, 3:5] == 1.).all()
+        assert (f.data[:, 1:4, 2:5, 3:6] == 1.).all()
 
     def test_override_function_data(self):
         """
@@ -515,25 +517,25 @@ class TestArguments(object):
 
         # Run with default value
         a.data[:] = 1.
-        op(t=2)
+        op(time_s=0, time=1)
         assert (a.data[:] == 4.).all()
 
         # Override with symbol (different name)
         a1 = TimeFunction(name='a1', grid=grid, save=2)
         a1.data[:] = 2.
-        op(t=2, a=a1)
+        op(time_s=0, time=1, a=a1)
         assert (a1.data[:] == 5.).all()
 
         # Override with symbol (same name as original)
         a2 = TimeFunction(name='a', grid=grid, save=2)
         a2.data[:] = 3.
-        op(t=2, a=a2)
+        op(time_s=0, time=1, a=a2)
         assert (a2.data[:] == 6.).all()
 
         # Override with user-allocated numpy data
         a3 = np.zeros_like(a.data_allocated)
         a3[:] = 4.
-        op(t=2, a=a3)
+        op(time_s=0, time=1, a=a3)
         assert (a3[[slice(i.left, -i.right) for i in a._offset_domain]] == 7.).all()
 
     def test_dimension_size_infer(self, nt=100):
@@ -546,7 +548,7 @@ class TestArguments(object):
         time = b.indices[0]
         op_arguments = op.arguments()
         assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt)
+        assert(op_arguments[time.end_name] == nt-1)
 
     def test_dimension_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
@@ -560,7 +562,7 @@ class TestArguments(object):
                  + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         op_arguments = op.arguments(time=nt-10)
-        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.start_name] == 2)
         assert(op_arguments[time.end_name] == nt - 10)
 
     def test_dimension_size_override(self):
@@ -573,12 +575,12 @@ class TestArguments(object):
 
         # Test dimension override via the buffered dimenions
         a.data[0] = 0.
-        op(a=a, t=6)
+        op(a=a, t=5)
         assert(np.allclose(a.data[1], 5.))
 
         # Test dimension override via the parent dimenions
         a.data[0] = 0.
-        op(a=a, time=5)
+        op(a=a, time=4)
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
@@ -588,10 +590,10 @@ class TestArguments(object):
         p_dim = Dimension(name='p_src')
         u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
         time = u.indices[0]
-        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                                  npoint=1, nt=10, coordinates=original_coords)
-        src2 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim],
-                                  npoint=1, nt=10, coordinates=new_coords)
+        src1 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
+                                  npoint=1, coordinates=original_coords, time_order=2)
+        src2 = SparseTimeFunction(name='src1', grid=grid, dimensions=[time, p_dim], nt=10,
+                                  npoint=1, coordinates=new_coords, time_order=2)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
@@ -611,26 +613,26 @@ class TestArguments(object):
         a = Function(name='a', grid=grid)
         b = TimeFunction(name='b', grid=grid, save=nt)
         time = b.indices[0]
-        b1 = TimeFunction(name='b1', grid=grid, save=nt+1)
         op = Operator(Eq(b, a))
 
         # Simple case, same as that tested above.
         # Repeated here for clarity of further tests.
         op_arguments = op.arguments()
         assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt)
+        assert(op_arguments[time.end_name] == nt-1)
 
         # Providing a tensor argument should infer the dimension size from its shape
+        b1 = TimeFunction(name='b1', grid=grid, save=nt+1)
         op_arguments = op.arguments(b=b1)
         assert(op_arguments[time.start_name] == 0)
-        assert(op_arguments[time.end_name] == nt + 1)
+        assert(op_arguments[time.end_name] == nt)
 
         # Providing a dimension size explicitly should override the automatically inferred
         op_arguments = op.arguments(b=b1, time=nt - 1)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 1)
 
-        # Providing a scalar argument explicitly should override the automatically\
+        # Providing a scalar argument explicitly should override the automatically
         # inferred
         op_arguments = op.arguments(b=b1, time_e=nt - 2)
         assert(op_arguments[time.start_name] == 0)
@@ -687,7 +689,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i < i_e; i += 1)
+  for (int i = i_s; i <= i_e; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -704,9 +706,9 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i < i_e; i += 1)
+  for (int i = i_s; i <= i_e; i += 1)
   {
-    for (int j = j_s; j < j_e; j += 1)
+    for (int j = j_s; j <= j_e; j += 1)
     {
       float s0 = c[i][j];
       c[i][j] = s0*c[i][j];
@@ -727,10 +729,10 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i < i_e; i += 1)
+  for (int i = i_s; i <= i_e; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = j_s; j < j_e; j += 1)
+    for (int j = j_s; j <= j_e; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -750,7 +752,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = i_s; i < i_e; i += 1)
+  for (int i = i_s; i <= i_e; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -768,15 +770,15 @@ class TestDeclarator(object):
   float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = k_s; k < k_e; k += 1)
+  for (int k = k_s; k <= k_e; k += 1)
   {
-    for (int s = s_s; s < s_e; s += 1)
+    for (int s = s_s; s <= s_e; s += 1)
     {
-      for (int q = q_s; q < q_e; q += 1)
+      for (int q = q_s; q <= q_e; q += 1)
       {
-        for (int i = i_s; i < i_e; i += 1)
+        for (int i = i_s; i <= i_e; i += 1)
         {
-          for (int j = j_s; j < j_e; j += 1)
+          for (int j = j_s; j <= j_e; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
@@ -855,11 +857,11 @@ class TestLoopScheduler(object):
          '**-', ['xyz'], 'xyz'),
         # WAR 1->2, 2->3; one may think it should be expected=3, but these are all
         # Arrays, so ti0 gets optimized through index bumping and array contraction,
-        # which results in expected=3
+        # which results in expected=2
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
           'Eq(ti3[x,y,z], ti1[x,y,z-2] + 1.)'),
-         '*****', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+         '****', ['xyz', 'xyz'], 'xyzz'),
         # WAR 1->3; expected=1
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
@@ -878,11 +880,11 @@ class TestLoopScheduler(object):
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tu[t,x,y,0], tu[t,x,y,0] + 1.)'),
          '***-', ['txyz', 'txy'], 'txyz'),
-        # WAR 1->2; RAW 2->3; expected=3
+        # WAR 1->2; RAW 2->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
-          'Eq(tw[t,x,y,z], tv[t,x,y,z-3] + 1.)'),
-         '******', ['txyz', 'txyz', 'txyz'], 'txyzzz'),
+          'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
+         '*****', ['txyz', 'txyz'], 'txyzz'),
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
@@ -896,7 +898,7 @@ class TestLoopScheduler(object):
         # WAR 1->2; WAW 1->3; expected=2
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
-          'Eq(tu[t-2,x,y,0], tu[t,x,y,0] + 1.)'),
+          'Eq(tu[t-1,x,y,0], tu[t,x,y,0] + 1.)'),
          '-***', ['txyz', 'txy'], 'txyz'),
         # WAR 1->2; expected=1
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
