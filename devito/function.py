@@ -135,7 +135,7 @@ class TensorFunction(SymbolicFunction):
         Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in np.add(self._halo, self._padding))
 
-        return EnrichedTuple(*offsets, left=left, right=right)
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @property
     def _offset_halo(self):
@@ -150,7 +150,7 @@ class TensorFunction(SymbolicFunction):
         Offset = namedtuple('Offset', 'left right')
         offsets = tuple(Offset(i, j) for i, j in self._padding)
 
-        return EnrichedTuple(*offsets, left=left, right=right)
+        return EnrichedTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
     @property
     def _extent_halo(self):
@@ -163,7 +163,7 @@ class TensorFunction(SymbolicFunction):
         Extent = namedtuple('Extent', 'left right')
         extents = tuple(Extent(i, j) for i, j in self._halo)
 
-        return EnrichedTuple(*extents, left=left, right=right)
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @property
     def _extent_padding(self):
@@ -176,7 +176,7 @@ class TensorFunction(SymbolicFunction):
         Extent = namedtuple('Extent', 'left right')
         extents = tuple(Extent(i, j) for i, j in self._padding)
 
-        return EnrichedTuple(*extents, left=left, right=right)
+        return EnrichedTuple(*extents, getters=self.dimensions, left=left, right=right)
 
     @property
     def _mem_external(self):
