@@ -118,7 +118,7 @@ def _new_operator2(shape, time_order, **kwargs):
     return outfield, op
 
 
-def _new_operator3(shape, time_order, **kwargs):
+def _new_operator3(shape, **kwargs):
     grid = Grid(shape=shape)
     spacing = 0.1
     a = 0.5
@@ -128,7 +128,7 @@ def _new_operator3(shape, time_order, **kwargs):
 
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2)
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=(2, 2, 2))
     u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
     # Derive the stencil according to devito conventions
@@ -347,10 +347,10 @@ def test_cache_blocking_edge_cases(shape, blockshape):
     ((15, 15), (3, 4))
 ])
 def test_cache_blocking_edge_cases_highorder(shape, blockshape):
-    wo_blocking, _ = _new_operator3(shape, time_order=2, dle='noop')
-    w_blocking, _ = _new_operator3(shape, time_order=2,
-                                   dle=('blocking', {'blockshape': blockshape,
-                                                     'blockinner': True}))
+    wo_blocking, a = _new_operator3(shape, dle='noop')
+    w_blocking, b = _new_operator3(shape, dle=('blocking', {'blockshape': blockshape,
+                                                            'blockinner': True}))
+
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
