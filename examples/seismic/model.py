@@ -37,6 +37,8 @@ def demo_model(preset, **kwargs):
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
+    space_order = kwargs.pop('space_order', 1)
+
     if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5km/s.
@@ -47,8 +49,8 @@ def demo_model(preset, **kwargs):
         dtype = kwargs.pop('dtype', np.float32)
         vp = kwargs.pop('vp', 1.5)
 
-        return Model(vp=vp, origin=origin, shape=shape, dtype=dtype,
-                     spacing=spacing, nbpml=nbpml, **kwargs)
+        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
@@ -67,10 +69,9 @@ def demo_model(preset, **kwargs):
         if len(shape) > 2:
             phi = .35*np.ones(shape, dtype=dtype)
 
-        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
-                     spacing=spacing, nbpml=nbpml,
-                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
-                     **kwargs)
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, phi=phi, **kwargs)
 
     elif preset.lower() in ['layers-isotropic', 'twolayer-isotropic',
                             '2layer-isotropic']:
@@ -92,8 +93,8 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
-                     spacing=spacing, nbpml=nbpml, **kwargs)
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
         # A two-layer model in a 2D or 3D domain with two different
@@ -121,10 +122,9 @@ def demo_model(preset, **kwargs):
         if len(shape) > 2:
             phi = .1*(v - 1.5)
 
-        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
-                     spacing=spacing, nbpml=nbpml,
-                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
-                     **kwargs)
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, phi=phi, **kwargs)
 
     elif preset.lower() in ['circle-isotropic']:
         # A simple circle in a 2D domain with a background velocity.
@@ -149,8 +149,8 @@ def demo_model(preset, **kwargs):
         y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
         v[x*x + y*y <= r*r] = vp
 
-        return Model(vp=v, origin=origin, shape=shape, dtype=dtype,
-                     spacing=spacing, nbpml=nbpml, **kwargs)
+        return Model(space_order=space_order, vp=v, origin=origin, shape=shape,
+                     dtype=dtype, spacing=spacing, nbpml=nbpml)
 
     elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
@@ -170,8 +170,8 @@ def demo_model(preset, **kwargs):
         # Cut the model to make it slightly cheaper
         v = v[301:-300, :]
 
-        return Model(vp=v, origin=origin, shape=v.shape, dtype=np.float32,
-                     spacing=spacing, nbpml=20, **kwargs)
+        return Model(space_order=space_order, vp=v, origin=origin, shape=v.shape,
+                     dtype=np.float32, spacing=spacing, nbpml=20)
 
     elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
@@ -210,13 +210,11 @@ def demo_model(preset, **kwargs):
         theta = np.float32(np.pi / 180 * theta.reshape(shape_full))
         theta = theta[101, :, :]
 
-        return Model(vp=vp, origin=origin, shape=shape, dtype=np.float32,
-                     spacing=spacing, nbpml=nbpml,
-                     epsilon=epsilon, delta=delta, theta=theta,
-                     **kwargs)
+        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
+                     dtype=np.float32, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, **kwargs)
 
     elif preset.lower() in ['marmousi-tti3d', 'marmousi3d-tti']:
-
         shape = (201, 201, 70)
         spacing = (10., 10., 10.)
         origin = (0., 0., 0.)
@@ -251,10 +249,9 @@ def demo_model(preset, **kwargs):
                           dtype='float32', sep="")
         phi = np.float32(np.pi / 180 * phi.reshape(shape))
 
-        return Model(vp=vp, origin=origin, shape=shape, dtype=np.float32,
-                     spacing=spacing, nbpml=nbpml,
-                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
-                     **kwargs)
+        return Model(space_order=space_order, vp=vp, origin=origin, shape=shape,
+                     dtype=np.float32, spacing=spacing, nbpml=nbpml, epsilon=epsilon,
+                     delta=delta, theta=theta, phi=phi, **kwargs)
 
     else:
         error('Unknown model preset name %s' % preset)
@@ -305,6 +302,7 @@ class Model(object):
     :param origin: Origin of the model in m as a tuple in (x,y,z) order
     :param spacing: Grid size in m as a Tuple in (x,y,z) order
     :param shape: Number of grid points size in (x,y,z) order
+    :param space_order: Order of the spatial stencil discretisation
     :param vp: Velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
     :param rho: Density in kg/cm^3 (rho=1 for water)
@@ -319,8 +317,8 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
-                 epsilon=None, delta=None, theta=None, phi=None):
+    def __init__(self, origin, spacing, shape, space_order, vp, nbpml=20,
+                 dtype=np.float32, epsilon=None, delta=None, theta=None, phi=None):
         self.shape = shape
         self.nbpml = int(nbpml)
         self.origin = origin
@@ -333,7 +331,7 @@ class Model(object):
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = Function(name="m", grid=self.grid)
+            self.m = Function(name="m", grid=self.grid, space_order=space_order)
         else:
             self.m = Constant(name="m", value=1/vp**2)
 
