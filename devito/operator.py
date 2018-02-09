@@ -21,7 +21,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
                            ArrayCast, PointerCast, derive_parameters)
 from devito.parameters import configuration
 from devito.profiling import create_profile
-from devito.symbolics import retrieve_terminals
+from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
 from devito.types import Object
 
@@ -72,8 +72,9 @@ class Operator(Callable):
         # References to local or external routines
         self.func_table = OrderedDict()
 
-        # Expression lowering
+        # Lower expressions
         expressions = self._specialize_exprs(expressions, subs)
+        expressions = [LoweredEq(i) for i in expressions]
 
         # Expression analysis
         self.dtype = retrieve_dtype(expressions)
@@ -243,8 +244,6 @@ class Operator(Callable):
         expressions = [indexify(i) for i in expressions]
         # Apply user-provided substitution rules
         expressions = [i.xreplace(subs) for i in expressions]
-        # Lower to /ir.Eq/, thus associating data and iteration space
-        expressions = [LoweredEq(i) for i in expressions]
         return expressions
 
     def _specialize_iet(self, nodes):
