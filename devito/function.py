@@ -19,7 +19,10 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_cross_derivative)
 from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 from devito.tools import EnrichedTuple
+from devito.interpolators import BilinearInterpolator
+from devito.tools import prod
 
+from IPython import embed
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction', 'Forward', 'Backward']
 
@@ -809,6 +812,8 @@ class SparseFunction(TensorFunction):
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
+            self.interpolator = BilinearInterpolator(self.grid)
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         """
@@ -825,61 +830,19 @@ class SparseFunction(TensorFunction):
         return kwargs.get('shape', (kwargs.get('npoint'),))
 
     @property
+    def gridpoints(self):
+        gridpoints = Function(name="%s_gridpoints" % self.name,
+                              dimensions=(self.indices[-1], Dimension(name='d')),
+                              shape=(self.npoint, self.grid.dim), space_order=0)
+
+    @property
     def coefficients(self):
-        """Symbolic expression for the coefficients for sparse point
-        interpolation according to:
-        https://en.wikipedia.org/wiki/Bilinear_interpolation.
-
-        :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
-        """
-        # Grid indices corresponding to the corners of the cell
-        x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
-        # Coordinate values of the sparse point
-        px, py, pz = self.point_symbols
-        if self.grid.dim == 2:
-            A = sympy.Matrix([[1, x1, y1, x1*y1],
-                              [1, x1, y2, x1*y2],
-                              [1, x2, y1, x2*y1],
-                              [1, x2, y2, x2*y2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [px*py]])
-
-            # Map to reference cell
-            x, y = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, x2: x.spacing, y2: y.spacing}
-
-        elif self.grid.dim == 3:
-            A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                              [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                              [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                              [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                              [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
-
-            p = sympy.Matrix([[1],
-                              [px],
-                              [py],
-                              [pz],
-                              [px*py],
-                              [px*pz],
-                              [py*pz],
-                              [px*py*pz]])
-
-            # Map to reference cell
-            x, y, z = self.grid.dimensions
-            reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing,
-                              y2: y.spacing, z2: z.spacing}
-        else:
-            raise NotImplementedError('Interpolation coefficients not implemented '
-                                      'for %d dimensions.' % self.grid.dim)
-
-        A = A.subs(reference_cell)
-        return A.inv().T.dot(p)
+        coefficients = Function(name="%s_coefficients" % self.name,
+                                dimensions=(self.indices[-1], Dimension(name='d'),
+                                            Dimension(name='i')),
+                                shape=(self.npoint, self.grid.dim,
+                                       self.interpolator.npoint), space_order=0)
+        return coefficients
 
     @property
     def point_symbols(self):
@@ -946,23 +909,13 @@ class SparseFunction(TensorFunction):
             expr = expr.subs(t, u_t).subs(time, u_t)
 
         variables = list(retrieve_indexed(expr))
-        # List of indirection indices for all adjacent grid points
-        index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self.coordinate_indices))
-                        for inc in self.point_increments]
-        # Generate index substituions for all grid variables
-        idx_subs = []
-        for i, idx in enumerate(index_matrix):
-            v_subs = [(v, v.base[v.indices[:-self.grid.dim] + idx])
-                      for v in variables]
-            idx_subs += [OrderedDict(v_subs)]
+        coefficients = self.coefficients
+        idx_subs = self.gridpoints
         # Substitute coordinate base symbols into the coefficients
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
-        rhs = sum([expr.subs(vsub) * b.subs(subs)
-                   for b, vsub in zip(self.coefficients, idx_subs)])
+        rhs = product([coefficients(self.indices[-1],i) for i in range(self.grid.dim)])
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
-
         rhs = rhs + lhs if cummulative is True else rhs
 
         return [Eq(lhs, rhs)]
@@ -976,7 +929,7 @@ class SparseFunction(TensorFunction):
                        absorbing boundary conditions.
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
-        """
+           """
         expr = indexify(expr)
         field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
@@ -986,7 +939,12 @@ class SparseFunction(TensorFunction):
             field = field.subs(field.indices[0], u_t)
         if p_t is not None:
             expr = expr.subs(self.indices[0], p_t)
-
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        gridpoints = self.gridpoints.indexed
+        coefficients = self.coefficients.indexed
+        p, d, i = self.coefficients.indices
+        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
+        rhs = rhs * expr.subs(subs)
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
                               in zip(inc, self.coordinate_indices))
@@ -994,6 +952,7 @@ class SparseFunction(TensorFunction):
 
         # Generate index substitutions for all grid variables except
         # the `SparseFunction` types
+        for 
         idx_subs = []
         for i, idx in enumerate(index_matrix):
             v_subs = [(v, v.base[v.indices[:-self.grid.dim] + idx])
@@ -1001,7 +960,8 @@ class SparseFunction(TensorFunction):
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
-        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        
+        embed()
         return [Inc(field.subs(vsub),
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]

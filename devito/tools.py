@@ -3,11 +3,12 @@ import os
 import ctypes
 import inspect
 from collections import Callable, Iterable, OrderedDict, Hashable
-from functools import partial, wraps
+from functools import partial, wraps, reduce
 from itertools import product, zip_longest
 from subprocess import DEVNULL, PIPE, Popen, CalledProcessError, check_output
 import cpuinfo
 from distutils import version
+from operator import mul
 
 from devito.parameters import configuration
 
@@ -563,3 +564,6 @@ class EnrichedTuple(tuple):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
         return obj
+
+def prod(iterable):
+    return reduce(mul, iterable, 1)
