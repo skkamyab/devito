@@ -812,7 +812,7 @@ class SparseFunction(TensorFunction):
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
-            self.interpolator = LinearInterpolator(self.grid)
+            self.interpolator = LinearInterpolator(self.grid, self.coordinates)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
