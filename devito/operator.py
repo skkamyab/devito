@@ -341,14 +341,7 @@ def retrieve_symbols(expressions):
     output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
     output = filter_sorted(output, key=attrgetter('name'))
 
-    indexeds = [i for i in terms if i.is_Indexed]
-    dimensions = []
-    for indexed in indexeds:
-        for i in indexed.indices:
-            dimensions.extend([k for k in i.free_symbols
-                               if isinstance(k, Dimension)])
-        dimensions.extend(list(indexed.base.function.indices))
-    dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
+    dimensions = flatten(e.dspace.dimensions + e.ispace.dimensions for e in expressions)
     dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
     return input, output, dimensions
