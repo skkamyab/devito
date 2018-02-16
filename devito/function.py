@@ -19,7 +19,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_cross_derivative)
 from devito.symbolics import Eq, Inc, indexify, retrieve_indexed
 from devito.tools import EnrichedTuple
-from devito.interpolators import BilinearInterpolator
+from devito.interpolators import LinearInterpolator
 from devito.tools import prod
 
 from IPython import embed
@@ -812,7 +812,7 @@ class SparseFunction(TensorFunction):
             # Padding region
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
-            self.interpolator = BilinearInterpolator(self.grid)
+            self.interpolator = LinearInterpolator(self.grid)
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -834,6 +834,7 @@ class SparseFunction(TensorFunction):
         gridpoints = Function(name="%s_gridpoints" % self.name,
                               dimensions=(self.indices[-1], Dimension(name='d')),
                               shape=(self.npoint, self.grid.dim), space_order=0)
+        gridpoints.initializer = lambda x: self.interpolator.calculate_grid_points(x)
         return gridpoints
 
     @property
@@ -843,6 +844,7 @@ class SparseFunction(TensorFunction):
                                             Dimension(name='i')),
                                 shape=(self.npoint, self.grid.dim,
                                        self.interpolator.npoint), space_order=0)
+        coefficients.initializer = lambda x: self.interpolator.calculate_coefficients(x)
         return coefficients
 
     @property
@@ -924,8 +926,6 @@ class SparseFunction(TensorFunction):
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
         rhs = rhs + lhs if cummulative is True else rhs
-        #embed()
-        #return []
         return [Eq(lhs, lhs + rhs)]
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
