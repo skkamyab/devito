@@ -23,10 +23,10 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, filter_ordered
 from devito.types import Object
 
-
+from IPython import embed
 class Operator(Callable):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
@@ -80,7 +80,7 @@ class Operator(Callable):
         expressions = [LoweredEq(e, subs=subs) for e in expressions]
         self.dtype = retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = retrieve_symbols(expressions)
-
+        
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
             if not time.is_Stepping:
@@ -93,7 +93,7 @@ class Operator(Callable):
 
         # Lower Clusters to an Iteration/Expression tree (IET)
         nodes = iet_build(clusters, self.dtype)
-
+        
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes)
 
@@ -133,7 +133,7 @@ class Operator(Callable):
         for p in self.input:
             default_args.update(p.argument_defaults())
         for p in self.dimensions:
-            if p.is_Sub:
+            if p.is_Sub or p.is_Default:
                 default_args.update(p.argument_defaults(default_args))
         return {k: default_args.reduce(k) for k in default_args}
 
@@ -148,7 +148,8 @@ class Operator(Callable):
         # Next, we insert user-provided overrides
         for p in self.input + self.dimensions:
             arguments.update(p.argument_values(**kwargs))
-
+        
+        # embed()
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
@@ -314,7 +315,9 @@ def retrieve_symbols(expressions):
     in ``expressions``.
     """
     terms = flatten(retrieve_terminals(i) for i in expressions)
-
+    indexed = [i for i in terms if i.is_Indexed]
+    # TODO: Remove the following hack
+    terms += filter_ordered(flatten([retrieve_terminals(i) for i in e.indices] for e in indexed))
     input = []
     for i in terms:
         try:
@@ -337,7 +340,6 @@ def retrieve_symbols(expressions):
         dimensions.extend(list(indexed.base.function.indices))
     dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
     dimensions = filter_sorted(dimensions, key=attrgetter('name'))
-
     return input, output, dimensions
 
 

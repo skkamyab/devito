@@ -13,7 +13,7 @@ from devito.ir.iet import (Denormals, Call, Callable, List, UnboundedIndex,
 from devito.symbolics import as_symbol
 from devito.tools import flatten
 from devito.types import Scalar
-
+from IPython import embed
 
 class BasicRewriter(AbstractRewriter):
 
@@ -84,9 +84,9 @@ class BasicRewriter(AbstractRewriter):
             # Insert array casts for all non-defined
             f_symbols = FindSymbols('symbolics').visit(free)
             defines = [s.name for s in FindSymbols('defines').visit(free)]
-            casts = [ArrayCast(f) for f in f_symbols if f.name not in defines]
+            casts = [ArrayCast(f) for f in f_symbols if f.name not in defines and f.is_SymbolicFunction]
             free = (List(body=casts), free)
-
+            #embed()
             for i in derive_parameters(free):
                 if i.name in defined_args:
                     args.append((defined_args[i.name], i))

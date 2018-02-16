@@ -217,6 +217,9 @@ class Expression(Node):
         # Note: at this point, expressions have already been indexified
         self.reads = [i for i in retrieve_terminals(self.expr.rhs)
                       if isinstance(i, (types.Indexed, types.Symbol))]
+        indexed = [i for i in self.reads if i.is_Indexed]
+        # TODO: Remove the following hack
+        self.reads += flatten([retrieve_terminals(i) for i in e.indices] for e in indexed)
         self.reads = filter_ordered(self.reads)
         # Filter collected dimensions and functions
         self.dimensions = flatten(i.indices for i in self.functions)

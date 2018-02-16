@@ -10,7 +10,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.data import Data, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension, TimeDimension
+from devito.dimension import Dimension, TimeDimension, DefaultValueDimension
 from devito.types import SymbolicFunction, AbstractCachedSymbol
 from devito.arguments import ArgumentMap
 from devito.finite_difference import (centered, cross_derivative,
@@ -834,6 +834,7 @@ class SparseFunction(TensorFunction):
         gridpoints = Function(name="%s_gridpoints" % self.name,
                               dimensions=(self.indices[-1], Dimension(name='d')),
                               shape=(self.npoint, self.grid.dim), space_order=0)
+        return gridpoints
 
     @property
     def coefficients(self):
@@ -909,16 +910,23 @@ class SparseFunction(TensorFunction):
             expr = expr.subs(t, u_t).subs(time, u_t)
 
         variables = list(retrieve_indexed(expr))
-        coefficients = self.coefficients
-        idx_subs = self.gridpoints
+        coefficients = self.coefficients.indexed
+        gridpoints = self.gridpoints.indexed
         # Substitute coordinate base symbols into the coefficients
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
-        rhs = product([coefficients(self.indices[-1],i) for i in range(self.grid.dim)])
+        p, _, i = self.coefficients.indices
+        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
+        dim_subs = []
+        for i, d in enumerate(self.grid.dimensions):
+            rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.interpolator.npoint)
+            dim_subs.append((d, INT(rd + gridpoints[p, i])))
+        rhs = rhs * expr.subs(dim_subs)
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
         rhs = rhs + lhs if cummulative is True else rhs
-
-        return [Eq(lhs, rhs)]
+        #embed()
+        #return []
+        return [Eq(lhs, lhs + rhs)]
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
@@ -942,7 +950,7 @@ class SparseFunction(TensorFunction):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         gridpoints = self.gridpoints.indexed
         coefficients = self.coefficients.indexed
-        p, d, i = self.coefficients.indices
+        p, _, i = self.coefficients.indices
         rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
         rhs = rhs * expr.subs(subs)
         # List of indirection indices for all adjacent grid points
@@ -952,19 +960,13 @@ class SparseFunction(TensorFunction):
 
         # Generate index substitutions for all grid variables except
         # the `SparseFunction` types
-        for 
-        idx_subs = []
-        for i, idx in enumerate(index_matrix):
-            v_subs = [(v, v.base[v.indices[:-self.grid.dim] + idx])
-                      for v in variables if not v.base.function.is_SparseFunction]
-            idx_subs += [OrderedDict(v_subs)]
-
-        # Substitute coordinate base symbols into the coefficients
-        
-        embed()
-        return [Inc(field.subs(vsub),
-                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
-                for b, vsub in zip(self.coefficients, idx_subs)]
+        p, _ = self.gridpoints.indices
+        dim_subs = []
+        for i, d in enumerate(self.grid.dimensions):
+            rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.interpolator.npoint)
+            dim_subs.append((d, INT(rd + gridpoints[p, i])))
+        field = field.subs(dim_subs)
+        return [Eq(field, field + rhs.subs(dim_subs))]
 
     def argument_defaults(self, alias=None):
         """
