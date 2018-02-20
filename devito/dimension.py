@@ -105,7 +105,30 @@ class Dimension(AbstractSymbol):
         """
         return {self.start_name: start or 0, self.end_name: size, self.size_name: size}
 
-    def argument_values(self, **kwargs):
+    def _arg_infers(self, args, interval=None, direction=None):
+        """
+        Returns a map of "better" default argument values, reading this symbols'
+        argument values in ``args`` and adjusting them if an interval or a direction
+        are provided.
+
+        :param args: Dictionary of known argument values.
+        :param interval: (Optional) a :class:`Interval` for ``self``.
+        :param direction: (Optional) a :class:`IterationDirection` for ``self``.
+        """
+        inferred = {}
+
+        if interval is None or direction is None:
+            return inferred
+
+        if self.start_name in args:
+            inferred[self.start_name] = args[self.start_name] - min(interval.lower, 0)
+
+        if self.end_name in args:
+            inferred[self.end_name] = args[self.end_name] - 1
+
+        return inferred
+
+    def _arg_values(self, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -219,25 +242,20 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
-    def argument_defaults(self, parent_defaults):
-        """
-        Returns a map of default argument values defined by this symbol.
+    def _arg_infers(self, args, interval=None, direction=None):
+        inferred = {}
 
-        :param parent_defaults: Default values for the parent dimensions.
-        """
-        args = {}
+        if self.parent.start_name in args:
+            inferred[self.start_name] = args[self.parent.start_name] + self.lower
 
-        if self.parent.start_name in parent_defaults:
-            args[self.start_name] = parent_defaults[self.parent.start_name] + self.lower
+        if self.parent.end_name in args:
+            inferred[self.end_name] = args[self.parent.end_name] + self.upper
 
-        if self.parent.end_name in parent_defaults:
-            args[self.end_name] = parent_defaults[self.parent.end_name] + self.upper
-
-        if self.parent.size_name in parent_defaults:
-            args[self.size_name] = parent_defaults[self.parent.size_name] -\
+        if self.parent.size_name in args:
+            inferred[self.size_name] = args[self.parent.size_name] -\
                 (self.lower + self.upper)
 
-        return args
+        return inferred
 
 
 class ConditionalDimension(DerivedDimension):
