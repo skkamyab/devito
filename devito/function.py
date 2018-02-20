@@ -314,10 +314,7 @@ class TensorFunction(SymbolicFunction):
 
         return shape
 
-    def argument_bounds(self):
-        return [(0, i + j) for i, j in zip(self.shape, self.staggered)]
-
-    def argument_defaults(self, alias=None):
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
@@ -327,8 +324,8 @@ class TensorFunction(SymbolicFunction):
         args = ReducerMap({key: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, (start, size) in zip(self.indices, self.argument_bounds()):
-            args.update(i.argument_defaults(start=start, size=size))
+        for i, s, o in zip(self.indices, self.shape, self.staggered):
+            args.update(i._arg_defaults(start=0, size=s+o))
         return args
 
     def _arg_values(self, alias=None, **kwargs):
@@ -356,7 +353,7 @@ class TensorFunction(SymbolicFunction):
                 values[key] = new
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    values.update(i._arg_defaults(size=s+o))
+                    values.update(i._arg_defaults(size=s+o-sum(self._offset_domain[i])))
 
         return values
 
@@ -714,11 +711,6 @@ class TimeFunction(Function):
     @property
     def _halo_indices(self):
         return tuple(i for i in self.indices if not i.is_Time)
-
-    def argument_bounds(self):
-        # Start point in time defaults to time_order (most natural choice)
-        return [(self.time_order if i == self.time_dim else 0, j + k)
-                for i, j, k in zip(self.indices, self.shape, self.staggered)]
 
     @property
     def forward(self):
@@ -1130,8 +1122,3 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
-
-    def argument_bounds(self):
-        # Start point in time defaults to time_order (most natural choice)
-        return [(self.time_order if i == self.time_dim else 0, j + k)
-                for i, j, k in zip(self.indices, self.shape, self.staggered)]
