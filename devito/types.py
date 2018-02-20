@@ -76,7 +76,7 @@ class Basic(object):
         return
 
     @abc.abstractmethod
-    def argument_defaults(self):
+    def _arg_defaults(self):
         """
         Returns a map of default argument values defined by this symbol.
         """
@@ -84,7 +84,7 @@ class Basic(object):
                                   self.__class__)
 
     @abc.abstractmethod
-    def argument_values(self, **kwargs):
+    def _arg_values(self, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -544,13 +544,13 @@ class Object(Basic):
     def __repr__(self):
         return self.name
 
-    def argument_defaults(self):
+    def _arg_defaults(self):
         if callable(self.value):
             return {self.name: self.value()}
         else:
             return {self.name: self.value}
 
-    def argument_values(self, **kwargs):
+    def _arg_values(self, **kwargs):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
