@@ -57,13 +57,13 @@ class Constant(AbstractCachedSymbol):
     def base(self):
         return self
 
-    def argument_defaults(self):
+    def _arg_defaults(self):
         """
         Returns a map of default argument values defined by this symbol.
         """
         return {self.name: self.data}
 
-    def argument_values(self, **kwargs):
+    def _arg_values(self, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -318,7 +318,7 @@ class TensorFunction(SymbolicFunction):
             args.update(i.argument_defaults(start=start, size=size))
         return args
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -337,13 +337,13 @@ class TensorFunction(SymbolicFunction):
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
                 values[key] = new._data_buffer
-                values.update(new.argument_defaults(alias=key).reduce_all())
+                values.update(new._arg_defaults(alias=key).reduce_all())
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key] = new
                 # Add value overrides for all associated dimensions
                 for i, s, o in zip(self.indices, new.shape, self.staggered):
-                    values.update(i.argument_defaults(size=s+o))
+                    values.update(i._arg_defaults(size=s+o))
 
         return values
 
@@ -741,7 +741,7 @@ class TimeFunction(Function):
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -755,7 +755,7 @@ class TimeFunction(Function):
                 raise TypeError("Incorrect value encountered, save should be %s" %
                                 self.save)
 
-        values = super(TimeFunction, self).argument_values(alias=alias, **kwargs)
+        values = super(TimeFunction, self)._arg_values(alias=alias, **kwargs)
         return values
 
 
@@ -1018,17 +1018,17 @@ class SparseFunction(TensorFunction):
                     field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
-    def argument_defaults(self, alias=None):
+    def _arg_defaults(self, alias=None):
         """
         Returns a map of default argument values defined by this symbol.
 
         :param alias: (Optional) name under which to store values.
         """
-        args = super(SparseFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults())
+        args = super(SparseFunction, self)._arg_defaults(alias=alias)
+        args.update(self.coordinates._arg_defaults())
         return args
 
-    def argument_values(self, alias=None, **kwargs):
+    def _arg_values(self, alias=None, **kwargs):
         """
         Returns a map of argument values after evaluating user input.
 
@@ -1040,16 +1040,16 @@ class SparseFunction(TensorFunction):
         new = kwargs.get(self.name)
         key = alias or self.name
 
-        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
+        values = super(SparseFunction, self)._arg_values(alias=key, **kwargs)
 
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
-            values.update(new.argument_defaults(alias=key).reduce_all())
-            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+            values.update(new._arg_defaults(alias=key).reduce_all())
+            values.update(new.coordinates._arg_defaults(alias=self.coordinates.name))
         else:
             # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=key, **kwargs))
+            values.update(self.coordinates._arg_values(alias=key, **kwargs))
         return values
 
 
