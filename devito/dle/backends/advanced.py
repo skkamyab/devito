@@ -159,7 +159,7 @@ class DevitoRewriter(BasicRewriter):
                 block_size = dim.symbolic_size
                 iter_size = i.dim.symbolic_extent
                 start = i.limits[0] + i.offsets[0]
-                finish = i.dim.symbolic_end + i.offsets[1]
+                finish = i.dim.symbolic_end + i.offsets[1] - 1
                 innersize = iter_size + (-i.offsets[0] + i.offsets[1])
                 finish = finish - (innersize % block_size)
                 inter_block = Iteration([], dim, [start, finish, block_size],
@@ -168,7 +168,7 @@ class DevitoRewriter(BasicRewriter):
 
                 # Build Iteration within a block
                 start = inter_block.dim
-                finish = start + block_size
+                finish = start + block_size - 1
                 intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
                                          properties=i.properties + (TAG, ELEMENTAL))
                 intra_blocks.append(intra_block)
