@@ -209,7 +209,7 @@ def test_dependences_eq(expr, expected, ti0, ti1, fa):
 
     # Force innatural flow, only to stress the compiler to see if it was
     # capable of detecting anti-dependences
-    expr.ispace.directions = {i: Forward for i in expr.ispace.directions}
+    expr.ispace._directions = {i: Forward for i in expr.ispace.directions}
 
     scope = Scope(expr)
     deps = scope.d_all
@@ -312,7 +312,7 @@ def test_dependences_scope(exprs, expected, ti0, ti1, ti3, fa):
     # Force innatural flow, only to stress the compiler to see if it was
     # capable of detecting anti-dependences
     for i in exprs:
-        i.ispace.directions = {i: Forward for i in i.ispace.directions}
+        i.ispace._directions = {i: Forward for i in i.ispace.directions}
 
     scope = Scope(exprs)
     assert len(scope.d_all) == len(expected)
