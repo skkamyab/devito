@@ -3,7 +3,7 @@ from itertools import groupby
 
 from devito.dimension import Dimension
 from devito.ir.support.basic import Access, Scope
-from devito.ir.support.space import Interval, Backward, Forward, Any
+from devito.ir.support.space import Interval, IntervalGroup, Backward, Forward, Any
 from devito.ir.support.stencil import Stencil
 from devito.symbolics import retrieve_indexed, q_affine
 from devito.tools import as_tuple, flatten
@@ -20,11 +20,12 @@ def compute_intervals(expr):
     indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
 
     # Detect the indexeds' offsets along each dimension
-    stencil = Stencil()
+    mapper = defaultdict(Stencil)
     for e in indexeds:
+        f = e.base.function
         for a in e.indices:
             if isinstance(a, Dimension):
-                stencil[a].update([0])
+                mapper[f][a].update([0])
             d = None
             off = [0]
             for i in a.args:
@@ -33,10 +34,16 @@ def compute_intervals(expr):
                 elif i.is_integer:
                     off += [int(i)]
             if d is not None:
-                stencil[d].update(off)
+                mapper[f][d].update(off)
 
-    # Determine intervals and their iterators
+    # Recast /mapper/ as function -> [Intervals]
+    parts = {}
+    for k, v in mapper.items():
+        parts[k] = IntervalGroup(Interval(i, min(j), max(j)) for i, j in v.items())
+
+    # Determine the cumulative /expr/ intervals and the relative iterators
     iterators = OrderedDict()
+    stencil = Stencil.union(*mapper.values())
     for i in stencil.dimensions:
         if i.is_NonlinearDerived:
             iterators.setdefault(i.parent, []).append(stencil.entry(i))
@@ -47,7 +54,7 @@ def compute_intervals(expr):
         offs = set.union(set(stencil.get(k)), *[i.ofs for i in v])
         intervals.append(Interval(k, min(offs), max(offs)))
 
-    return intervals, iterators
+    return intervals, iterators, parts
 
 
 def detect_flow_directions(exprs):

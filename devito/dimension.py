@@ -105,19 +105,18 @@ class Dimension(AbstractSymbol):
         """
         return {self.start_name: start or 0, self.end_name: size, self.size_name: size}
 
-    def _arg_infers(self, args, interval=None, direction=None):
+    def _arg_infers(self, args, interval):
         """
         Returns a map of "better" default argument values, reading this symbols'
-        argument values in ``args`` and adjusting them if an interval or a direction
-        are provided.
+        argument values in ``args`` and adjusting them based on the provided
+        :class:`Interval` ``interval``.
 
         :param args: Dictionary of known argument values.
-        :param interval: (Optional) a :class:`Interval` for ``self``.
-        :param direction: (Optional) a :class:`IterationDirection` for ``self``.
+        :param interval: A :class:`Interval` for ``self``.
         """
         inferred = {}
 
-        if interval is None or direction is None:
+        if interval is None:
             return inferred
 
         if self.start_name in args:
@@ -242,7 +241,7 @@ class SubDimension(DerivedDimension):
     def _hashable_content(self):
         return (self.parent._hashable_content(), self.lower, self.upper)
 
-    def _arg_infers(self, args, interval=None, direction=None):
+    def _arg_infers(self, args, interval):
         inferred = {}
 
         if self.parent.start_name in args:
