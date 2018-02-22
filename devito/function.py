@@ -100,6 +100,9 @@ class Constant(AbstractCachedSymbol):
             values[self.name] = new.data if isinstance(new, Constant) else new
         return values
 
+    def arguments_initialize(self, **kwargs):
+        pass
+
 
 class TensorFunction(SymbolicFunction):
 
@@ -364,6 +367,9 @@ class TensorFunction(SymbolicFunction):
         for i in self.indices:
             values.update(i.argument_values(**kwargs))
         return values
+
+    def arguments_preprocess(self, **kwargs):
+        pass
 
 
 class Function(TensorFunction):
@@ -806,6 +812,11 @@ class SparseFunction(TensorFunction):
                 coordinates.data[:] = coordinate_data[:]
             self.coordinates = coordinates
 
+            gridpoints = Function(name="%s_gridpoints" % self.name,
+                              dimensions=(self.indices[-1], Dimension(name='d')),
+                              shape=(self.npoint, self.grid.dim), space_order=0)
+            self.gridpoints = gridpoints
+
             # Halo region
             self._halo = tuple((0, 0) for i in range(self.ndim))
 
@@ -813,6 +824,13 @@ class SparseFunction(TensorFunction):
             self._padding = tuple((0, 0) for i in range(self.ndim))
 
             self.interpolator = LinearInterpolator(self.grid, self.coordinates)
+
+            coefficients = Function(name="%s_coefficients" % self.name,
+                                dimensions=(self.indices[-1], Dimension(name='d'),
+                                            Dimension(name='i')),
+                                shape=(self.npoint, self.grid.dim,
+                                       self.interpolator.npoint), space_order=0)
+            self.coefficients = coefficients
 
     @classmethod
     def __indices_setup__(cls, **kwargs):
@@ -828,24 +846,6 @@ class SparseFunction(TensorFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('npoint'),))
-
-    @property
-    def gridpoints(self):
-        gridpoints = Function(name="%s_gridpoints" % self.name,
-                              dimensions=(self.indices[-1], Dimension(name='d')),
-                              shape=(self.npoint, self.grid.dim), space_order=0)
-        gridpoints.initializer = lambda x: self.interpolator.calculate_grid_points(x)
-        return gridpoints
-
-    @property
-    def coefficients(self):
-        coefficients = Function(name="%s_coefficients" % self.name,
-                                dimensions=(self.indices[-1], Dimension(name='d'),
-                                            Dimension(name='i')),
-                                shape=(self.npoint, self.grid.dim,
-                                       self.interpolator.npoint), space_order=0)
-        coefficients.initializer = lambda x: self.interpolator.calculate_coefficients(x)
-        return coefficients
 
     @property
     def point_symbols(self):
@@ -962,9 +962,14 @@ class SparseFunction(TensorFunction):
         # the `SparseFunction` types
         p, _ = self.gridpoints.indices
         dim_subs = []
+        coords = self.coordinates.indexed
+        origin = self.grid.origin
+        spacing = self.grid.spacing
+        FLOOR = sympy.Function('floor')
+        r = self.interpolator.r
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.interpolator.npoint)
-            dim_subs.append((d, INT(rd + gridpoints[p, i])))
+            dim_subs.append((d, rd + INT(FLOOR((coords[p, i]-origin[i])/spacing[i])) - (r-1)))
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
 
@@ -997,6 +1002,10 @@ class SparseFunction(TensorFunction):
             # ..., but if not, we simply need to recurse over children.
             values.update(self.coordinates.argument_values(alias=alias, **kwargs))
         return values
+
+    def arguments_preprocess(self, **kwargs):
+        kwargs[self.gridpoints.name] = self.interpolator.calculate_grid_points(kwargs[self.gridpoints.name], kwargs)
+        kwargs[self.coefficients.name] = self.interpolator.calculate_coefficients(kwargs[self.coefficients.name], kwargs)
 
 
 class SparseTimeFunction(SparseFunction):

@@ -179,7 +179,11 @@ class Operator(Callable):
         for p in self.parameters:
             if p.name not in arguments:
                 raise ValueError("No value found for parameter %s" % p.name)
-
+        print(self.ccode)
+        for p in self.parameters:
+            if hasattr(p, "arguments_preprocess"):
+                p.arguments_preprocess(**arguments)
+                
         return arguments
 
     @property
