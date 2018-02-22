@@ -2,6 +2,7 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
+from devito.exceptions import InvalidArgument
 from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension',
@@ -146,6 +147,23 @@ class Dimension(AbstractSymbol):
             values[self.end_name] = kwargs.pop(self.name)
 
         return values
+
+    def _arg_check(self, args, size, interval):
+        """
+        :raises InvalidArgument: If any of the ``self``-related runtime arguments
+                                 in ``args`` will cause an out-of-bounds access.
+        """
+        if self.start_name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.start_name)
+        if interval.is_Defined and args[self.start_name] + interval.lower < 0:
+            raise InvalidArgument("OOB detected due to %s=%d" % (self.start_name,
+                                                                 args[self.start_name]))
+
+        if self.end_name not in args:
+            raise InvalidArgument("No runtime value for %s" % self.end_name)
+        if interval.is_Defined and args[self.end_name] + interval.upper >= size:
+            raise InvalidArgument("OOB detected due to %s=%d" % (self.end_name,
+                                                                 args[self.end_name]))
 
 
 class SpaceDimension(Dimension):
@@ -364,6 +382,13 @@ class SteppingDimension(DerivedDimension):
             values[self.parent.end_name] = kwargs.pop(self.name)
 
         return values
+
+    def _arg_check(self, args, size, interval):
+        """
+        :raises InvalidArgument: If any of the ``self``-related runtime arguments
+                                 in ``args`` will cause an out-of-bounds access.
+        """
+        return
 
 
 class LoweredDimension(Dimension):
