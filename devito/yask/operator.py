@@ -10,6 +10,7 @@ from devito.dimension import LoweredDimension
 from devito.logger import yask as log, yask_warning as warning
 from devito.ir.iet import (Element, List, PointerCast, MetaCall, IsPerfectIteration,
                            Transformer, filter_iterations, retrieve_iteration_tree)
+from devito.ir.support import align_accesses
 from devito.operator import OperatorRunnable
 from devito.tools import flatten
 from devito.types import Object
@@ -64,7 +65,7 @@ class Operator(OperatorRunnable):
             transform = sympy2yask(self.context, yc_soln)
             try:
                 for i in tree[-1].nodes:
-                    transform(i.expr)
+                    transform(align_accesses(i.expr, reverse=True))
 
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
