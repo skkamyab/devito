@@ -4,7 +4,7 @@ from devito.dimension import SubDimension
 from devito.equation import DOMAIN, INTERIOR
 from devito.ir.support import (IterationSpace, DataSpace, Interval, IntervalGroup, Any,
                                detect_accesses, detect_oobs, force_directions, detect_io,
-                               build_intervals, detect_flow_directions, align_accesses)
+                               build_intervals, detect_flow_directions)
 from devito.symbolics import FrozenExpr, dimension_sort
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'IREq']
@@ -94,9 +94,6 @@ class LoweredEq(Eq, IREq):
                       for i in ordering if i.is_Space}
             expr = expr.xreplace(mapper)
             ordering = [mapper.get(i, i) for i in ordering]
-
-        # Align data accesses to the computational domain
-        expr = align_accesses(expr)
 
         # Analyze data accesses
         mapper = detect_accesses(expr)
