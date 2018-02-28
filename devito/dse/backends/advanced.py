@@ -147,7 +147,7 @@ class AdvancedRewriter(BasicRewriter):
 
             # Build a symbolic function for /alias/
             shape = tuple(i.symbolic_size for i in indices)
-            halo = tuple((abs(i.lower), abs(i.upper)) for i in intervals)
+            halo = [(abs(intervals[i].lower), abs(intervals[i].upper)) for i in indices]
             function = Array(name=template(c), shape=shape, dimensions=indices, halo=halo)
             access = tuple(i - intervals[i].lower for i in indices)
             expression = Eq(Indexed(function.indexed, *access), origin)
