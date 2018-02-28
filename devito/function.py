@@ -1089,3 +1089,173 @@ class SparseTimeFunction(SparseFunction):
     @classmethod
     def __shape_setup__(cls, **kwargs):
         return kwargs.get('shape', (kwargs.get('nt'), kwargs.get('npoint'),))
+
+
+class GridSparseFunction(TensorFunction):
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(GridSparseFunction, self).__init__(*args, **kwargs)
+
+            npoint = kwargs.get('npoint')
+            if not isinstance(npoint, int) and npoint > 0:
+                raise ValueError('SparseFunction requires parameter `npoint` (> 0)')
+            self.npoint = npoint
+
+            # Grid points per sparse point (4 in the case of bilinear, 8 for trilinear
+            r = kwargs.get('r')
+            if not isinstance(r, int) and r > 0:
+                raise ValueError('Interpolation requires parameter `r` (>0)')
+            self.r = r
+
+            # Grid must be provided
+            grid = kwargs.get('grid')
+            if kwargs.get('grid') is None:
+                raise ValueError('SparseFunction objects require a grid parameter')
+            self.grid = grid
+
+            self.dtype = kwargs.get('dtype', self.grid.dtype)
+            self.space_order = kwargs.get('space_order', 0)
+
+            gridpoints = Function(name="%s_gridpoints" % self.name,
+                                  dimensions=(self.indices[-1], Dimension(name='d')),
+                                  shape=(self.npoint, self.grid.dim), space_order=0,
+                                  dtype=np.int32)
+            
+            gridpoints_data = kwargs.get('gridpoints', None)
+            assert(gridpoints_data is not None)
+            gridpoints.data[:] = gridpoints_data[:]
+            self.gridpoints = gridpoints
+
+            coefficients = Function(name="%s_coefficients" % self.name,
+                                dimensions=(self.indices[-1], Dimension(name='d'),
+                                            Dimension(name='i')),
+                                shape=(self.npoint, self.grid.dim,
+                                       self.interpolator.npoint), space_order=0)
+            coefficients_data = kwargs.get('coefficients', None)
+            assert(coefficients_data is not None)
+            coefficients.data[:] = coefficients_data[:]
+            self.coefficients = coefficients
+
+            # Halo region
+            self._halo = tuple((0, 0) for i in range(self.ndim))
+
+            # Padding region
+            self._padding = tuple((0, 0) for i in range(self.ndim))
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        """
+        Return the default dimension indices for a given data shape.
+        """
+        dimensions = kwargs.get('dimensions')
+        if dimensions is not None:
+            return dimensions
+        else:
+            return (Dimension(name='p_%s' % kwargs["name"]),)
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        return kwargs.get('shape', (kwargs.get('npoint'),))
+
+    def argument_defaults(self, alias=None):
+        """
+        Returns a map of default argument values defined by this symbol.
+
+        :param alias: (Optional) name under which to store values.
+        """
+        args = super(SparseFunction, self).argument_defaults(alias=alias)
+        args.update(self.coordinates.argument_defaults())
+        return args
+
+    def argument_values(self, alias=None, **kwargs):
+        """
+        Returns a map of argument values after evaluating user input.
+
+        :param kwargs: Dictionary of user-provided argument overrides.
+        :param alias: (Optional) name under which to store values.
+        """
+        # Take a copy of the replacement before super pops it from kwargs
+
+        new = kwargs.get(self.name)
+        key = alias or self.name
+
+        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
+
+        if new is not None and isinstance(new, SparseFunction):
+            # If we've been replaced with a SparseFunction,
+            # we need to re-derive defaults and values...
+            values.update(new.argument_defaults(alias=key).reduce_all())
+            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+        else:
+            # ..., but if not, we simply need to recurse over children.
+            values.update(self.coordinates.argument_values(alias=key, **kwargs))
+        return values
+
+    def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
+
+        :param expr: The expression to interpolate.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
+        :param cummulative: (Optional) If True, perform an increment rather
+                            than an assignment. Defaults to False.
+        """
+        expr = indexify(expr)
+
+        # Apply optional time symbol substitutions to expr
+        if u_t is not None:
+            time = self.grid.time_dim
+            t = self.grid.stepping_dim
+            expr = expr.subs(t, u_t).subs(time, u_t)
+
+        coefficients = self.coefficients
+        gridpoints = self.gridpoints
+        p, _, i = self.coefficients.indices
+        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
+        dim_subs = []
+        for i, d in enumerate(self.grid.dimensions):
+            rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.r)
+            dim_subs.append((d, INT(rd + gridpoints[p, i])))
+        # Apply optional time symbol substitutions to lhs of assignment
+        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        rhs = rhs * expr.subs(dim_subs)
+        
+        return [Eq(lhs, lhs + rhs)]
+
+    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+        """Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
+        expr = indexify(expr)
+        field = indexify(field)
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
+            
+        gridpoints = self.gridpoints.indexed
+        coefficients = self.coefficients.indexed
+        p, _, i = self.coefficients.indices
+        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
+        rhs = rhs * expr
+
+        p, _ = self.gridpoints.indices
+        dim_subs = []
+        for i, d in enumerate(self.grid.dimensions):
+            rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.r)
+            dim_subs.append((d, INT(rd + gridpoints[p, i])))
+        field = field.subs(dim_subs)
+        return [Eq(field, field + rhs.subs(dim_subs))]
