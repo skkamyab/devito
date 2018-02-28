@@ -14,6 +14,7 @@ class Dimension(AbstractSymbol):
     is_Space = False
     is_Time = False
 
+    is_Default = False
     is_Derived = False
     is_NonlinearDerived = False
     is_Sub = False
@@ -122,6 +123,21 @@ class Dimension(AbstractSymbol):
             values[self.end_name] = kwargs.pop(self.name)
 
         return values
+
+
+class DefaultValueDimension(Dimension):
+    is_Default = True
+
+    def __new__(cls, name, **kwargs):
+        newobj = sympy.Symbol.__new__(cls, name)
+        newobj._reverse = kwargs.get('reverse', False)
+        newobj._spacing = kwargs.get('spacing', Scalar(name='h_%s' % name))
+        newobj.default_value = kwargs.get('default_value', None)
+        return newobj
+
+    def argument_defaults(self, size=None):
+        value = self.default_value
+        return {self.start_name: 0, self.end_name: value, self.size_name: value}
 
 
 class SpaceDimension(Dimension):
