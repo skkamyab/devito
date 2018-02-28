@@ -369,7 +369,8 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
-                self.theta = Function(name="theta", grid=self.grid)
+                self.theta = Function(name="theta", grid=self.grid,
+                                      space_order=space_order)
                 initialize_function(self.theta, theta, self.nbpml)
             else:
                 self.theta = theta
@@ -378,7 +379,7 @@ class Model(object):
 
         if phi is not None:
             if isinstance(phi, np.ndarray):
-                self.phi = Function(name="phi", grid=self.grid)
+                self.phi = Function(name="phi", grid=self.grid, space_order=space_order)
                 initialize_function(self.phi, phi, self.nbpml)
             else:
                 self.phi = phi
