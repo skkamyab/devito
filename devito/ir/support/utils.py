@@ -47,7 +47,7 @@ def detect_oobs(mapper):
     """
     found = set()
     for f, stencil in mapper.items():
-        if not f.is_SymbolicFunction:
+        if not f.is_TensorFunction:
             continue
         for d, v in stencil.items():
             p = d.parent if d.is_Sub else d
@@ -99,7 +99,7 @@ def align_accesses(expr, reverse=False):
     mapper = {}
     for indexed in retrieve_indexed(expr):
         f = indexed.base.function
-        if not f.is_SymbolicFunction:
+        if not f.is_TensorFunction:
             continue
         subs = {i: i + shift(j.left) for i, j in zip(indexed.indices, f._offset_domain)}
         mapper[indexed] = indexed.xreplace(subs)

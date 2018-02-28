@@ -196,7 +196,7 @@ class FlowGraph(OrderedDict):
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
                     continue
-                elif not i.base.function.is_SymbolicFunction:
+                elif not i.base.function.is_TensorFunction:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False
