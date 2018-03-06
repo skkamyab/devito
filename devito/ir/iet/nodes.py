@@ -214,6 +214,9 @@ class Expression(Node):
         self.reads = [i for i in retrieve_terminals(self.expr.rhs)
                       if isinstance(i, (types.Indexed, types.Symbol))]
         self.reads = filter_ordered(self.reads)
+        indexed = [i for i in self.reads if i.is_Indexed]
+        # TODO: Remove the following hack
+        self.reads += flatten([retrieve_terminals(i) for i in e.indices] for e in indexed)
         # Filter collected dimensions and functions
         self.dimensions = flatten(i.indices for i in self.functions)
         self.dimensions = filter_ordered(self.dimensions)

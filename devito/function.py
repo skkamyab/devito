@@ -9,7 +9,7 @@ from psutil import virtual_memory
 from devito.arguments import ArgumentMap
 from devito.cgen_utils import INT, FLOAT
 from devito.data import Data, first_touch
-from devito.dimension import Dimension
+from devito.dimension import Dimension, DefaultValueDimension
 from devito.equation import Eq, Inc
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
@@ -19,7 +19,7 @@ from devito.logger import debug, error, warning
 from devito.parameters import configuration
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types import SymbolicFunction, AbstractCachedSymbol
-from devito.tools import EnrichedTuple
+from devito.tools import EnrichedTuple, prod
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'SparseTimeFunction']
@@ -1129,8 +1129,8 @@ class GridSparseFunction(TensorFunction):
             coefficients = Function(name="%s_coefficients" % self.name,
                                 dimensions=(self.indices[-1], Dimension(name='d'),
                                             Dimension(name='i')),
-                                shape=(self.npoint, self.grid.dim,
-                                       self.interpolator.npoint), space_order=0)
+                                shape=(self.npoint, self.grid.dim,self.r),
+                                space_order=0)
             coefficients_data = kwargs.get('coefficients', None)
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
@@ -1163,8 +1163,9 @@ class GridSparseFunction(TensorFunction):
 
         :param alias: (Optional) name under which to store values.
         """
-        args = super(SparseFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults())
+        args = super(GridSparseFunction, self).argument_defaults(alias=alias)
+        args.update(self.gridpoints.argument_defaults())
+        args.update(self.coefficients.argument_defaults())
         return args
 
     def argument_values(self, alias=None, **kwargs):
@@ -1179,16 +1180,18 @@ class GridSparseFunction(TensorFunction):
         new = kwargs.get(self.name)
         key = alias or self.name
 
-        values = super(SparseFunction, self).argument_values(alias=key, **kwargs)
+        values = super(GridSparseFunction, self).argument_values(alias=key, **kwargs)
 
         if new is not None and isinstance(new, SparseFunction):
             # If we've been replaced with a SparseFunction,
             # we need to re-derive defaults and values...
             values.update(new.argument_defaults(alias=key).reduce_all())
-            values.update(new.coordinates.argument_defaults(alias=self.coordinates.name))
+            values.update(new.gridpoints.argument_defaults(alias=self.gridpoints.name))
+            values.update(new.coefficents.argument_defaults(alias=self.coefficients.name))
         else:
             # ..., but if not, we simply need to recurse over children.
-            values.update(self.coordinates.argument_values(alias=key, **kwargs))
+            values.update(self.gridpoints.argument_values(alias=key, **kwargs))
+            values.update(self.coefficients.argument_values(alias=key, **kwargs))
         return values
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, cummulative=False):
@@ -1213,8 +1216,8 @@ class GridSparseFunction(TensorFunction):
             t = self.grid.stepping_dim
             expr = expr.subs(t, u_t).subs(time, u_t)
 
-        coefficients = self.coefficients
-        gridpoints = self.gridpoints
+        coefficients = self.coefficients.indexed
+        gridpoints = self.gridpoints.indexed
         p, _, i = self.coefficients.indices
         rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
         dim_subs = []

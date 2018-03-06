@@ -84,7 +84,7 @@ class BasicRewriter(AbstractRewriter):
             # Insert array casts for all non-defined
             f_symbols = FindSymbols('symbolics').visit(free)
             defines = [s.name for s in FindSymbols('defines').visit(free)]
-            casts = [ArrayCast(f) for f in f_symbols if f.name not in defines]
+            casts = [ArrayCast(f) for f in f_symbols if f.name not in defines and f.is_SymbolicFunction]
             free = (List(body=casts), free)
 
             for i in derive_parameters(free):

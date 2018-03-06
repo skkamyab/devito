@@ -142,6 +142,7 @@ class CGen(Visitor):
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
+
         for i in args:
             if i.is_Object:
                 ret.append(c.Value('void', '*_%s' % i.name))

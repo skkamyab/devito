@@ -22,7 +22,7 @@ from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_dec
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import retrieve_terminals
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, filter_ordered
 from devito.types import Object
 
 
@@ -124,7 +124,7 @@ class Operator(Callable):
             if p.name not in arguments:
                 default_args.update(p.argument_defaults())
         for p in self.dimensions:
-            if p.name not in arguments and p.is_Sub:
+            if p.name not in arguments and (p.is_Sub or p.is_Default):
                 default_args.update(p.argument_defaults(default_args))
         return {k: default_args.reduce(k) for k in default_args if k not in arguments}
 
@@ -140,7 +140,8 @@ class Operator(Callable):
 
         # Second, derive all remaining default values from parameters
         arguments.update(self._argument_defaults(arguments))
-
+        from IPython import embed
+        embed()
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
@@ -306,7 +307,9 @@ def retrieve_symbols(expressions):
     in ``expressions``.
     """
     terms = flatten(retrieve_terminals(i) for i in expressions)
-
+    indexed = [i for i in terms if i.is_Indexed]
+    # TODO: Remove the following hack
+    terms += filter_ordered(flatten([retrieve_terminals(i) for i in e.indices] for e in indexed))
     input = []
     for i in terms:
         try:

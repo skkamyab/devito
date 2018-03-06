@@ -1,9 +1,13 @@
 import numpy as np
 import pytest
 from conftest import skipif_yask
+from math import sin
+from math import floor
+import sympy
 
 from devito.cgen_utils import FLOAT
 from devito import Grid, Operator, Function, SparseFunction, Dimension
+from devito.function import GridSparseFunction
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
@@ -49,6 +53,29 @@ def custom_points(grid, ranges, npoints, name='points'):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
 
+def test_precomputed_interpolation():
+    shape = (11,11)
+    origin = (0,0)
+    grid = Grid(shape=shape, origin=origin)
+    r = 2 # Constant for linear interpolation
+    # because we interpolate across 2 neighbouring points in each dimension
+    def init(data):
+        for i in range(shape[0]):
+            data[i] = sin(grid.spacing[0]*i)
+        return data
+    m = Function(name='m', grid=grid, initializer=init)
+    point = (0.45,0.45)
+    gridpoint = tuple(floor((point[i]-origin[i])/grid.spacing[i]) for i in range(len(point)))
+    coefficients = np.zeros((1, 2, 2))
+    for d in range(grid.dim):
+        coefficients[0, d, :] = [((gridpoint[d] + 1)*grid.spacing[d] - point[d]), (point[d]-gridpoint[d]*grid.spacing[d])]
+    print(coefficients)
+    sf = GridSparseFunction(name='s', grid=grid, r=r, npoint=1, gridpoints=[gridpoint], coefficients=coefficients)
+    eqn = sf.interpolate(m)
+    op = Operator(eqn)
+    op()
+    print(sf.data)
+    
 
 @skipif_yask
 @pytest.mark.parametrize('shape, coords', [
