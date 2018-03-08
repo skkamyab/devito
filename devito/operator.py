@@ -140,8 +140,7 @@ class Operator(Callable):
 
         # Second, derive all remaining default values from parameters
         arguments.update(self._argument_defaults(arguments))
-        from IPython import embed
-        embed()
+
         # Derive additional values for DLE arguments
         # TODO: This is not pretty, but it works for now. Ideally, the
         # DLE arguments would be massaged into the IET so as to comply
@@ -309,7 +308,8 @@ def retrieve_symbols(expressions):
     terms = flatten(retrieve_terminals(i) for i in expressions)
     indexed = [i for i in terms if i.is_Indexed]
     # TODO: Remove the following hack
-    terms += filter_ordered(flatten([retrieve_terminals(i) for i in e.indices] for e in indexed))
+    terms += filter_ordered(flatten([retrieve_terminals(i) for i in e.indices]
+                                    for e in indexed))
     input = []
     for i in terms:
         try:

@@ -1120,17 +1120,17 @@ class GridSparseFunction(TensorFunction):
                                   dimensions=(self.indices[-1], Dimension(name='d')),
                                   shape=(self.npoint, self.grid.dim), space_order=0,
                                   dtype=np.int32)
-            
+
             gridpoints_data = kwargs.get('gridpoints', None)
             assert(gridpoints_data is not None)
             gridpoints.data[:] = gridpoints_data[:]
             self.gridpoints = gridpoints
 
             coefficients = Function(name="%s_coefficients" % self.name,
-                                dimensions=(self.indices[-1], Dimension(name='d'),
-                                            Dimension(name='i')),
-                                shape=(self.npoint, self.grid.dim,self.r),
-                                space_order=0)
+                                    dimensions=(self.indices[-1], Dimension(name='d'),
+                                                Dimension(name='i')),
+                                    shape=(self.npoint, self.grid.dim, self.r),
+                                    space_order=0)
             coefficients_data = kwargs.get('coefficients', None)
             assert(coefficients_data is not None)
             coefficients.data[:] = coefficients_data[:]
@@ -1218,16 +1218,18 @@ class GridSparseFunction(TensorFunction):
 
         coefficients = self.coefficients.indexed
         gridpoints = self.gridpoints.indexed
-        p, _, i = self.coefficients.indices
-        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
+        p, _, _ = self.coefficients.indices
         dim_subs = []
+        coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.r)
             dim_subs.append((d, INT(rd + gridpoints[p, i])))
+            coeffs.append(coefficients[p, i, rd])
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        rhs = prod(coeffs)
         rhs = rhs * expr.subs(dim_subs)
-        
+
         return [Eq(lhs, lhs + rhs)]
 
     def inject(self, field, expr, offset=0, u_t=None, p_t=None):
@@ -1248,17 +1250,17 @@ class GridSparseFunction(TensorFunction):
             field = field.subs(field.indices[0], u_t)
         if p_t is not None:
             expr = expr.subs(self.indices[0], p_t)
-            
+
         gridpoints = self.gridpoints.indexed
         coefficients = self.coefficients.indexed
-        p, _, i = self.coefficients.indices
-        rhs = prod([coefficients[p, j, i] for j in range(self.grid.dim)])
-        rhs = rhs * expr
 
         p, _ = self.gridpoints.indices
         dim_subs = []
+        coeffs = []
         for i, d in enumerate(self.grid.dimensions):
             rd = DefaultValueDimension(name="r%s" % d.name, default_value=self.r)
             dim_subs.append((d, INT(rd + gridpoints[p, i])))
+            coeffs.append(coefficients[p, i, rd])
+        rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
         return [Eq(field, field + rhs.subs(dim_subs))]
