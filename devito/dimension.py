@@ -5,7 +5,7 @@ from cached_property import cached_property
 from devito.types import AbstractSymbol, Scalar, Symbol
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'SteppingDimension', 'SubDimension', 'ConditionalDimension']
+           'SteppingDimension', 'SubDimension', 'ConditionalDimension', 'dimensions']
 
 
 class Dimension(AbstractSymbol):
