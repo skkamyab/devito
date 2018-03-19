@@ -1011,8 +1011,8 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = super(SparseFunction, self).argument_defaults(alias=alias)
-        args.update(self.coordinates.argument_defaults(alias=key.coordinates))
+        args = super(SparseFunction, key).argument_defaults(alias=alias)
+        args.update(key.coordinates.argument_defaults(alias=key.coordinates))
 
         return args
 
@@ -1028,23 +1028,9 @@ class SparseFunction(TensorFunction):
 
         # Add value override for own data if it is provided
         if self.name in kwargs:
-            new = kwargs.pop(self.name)
-            if len(new.shape) != self.ndim:
-                raise ValueError("Array shape %s does not match" % (new.shape, ) +
-                                 "dimensions %s" % (self.indices, ))
-            if isinstance(new, SparseFunction):
-                # If we've been replaced with a SparseFunction,
-                # we need to re-derive defaults and values...
-                values = new.argument_defaults(alias=key).reduce_all()
-                values.update(new.coordinates.argument_values(alias=key.coordinates,
-                                                              **kwargs))
-            else:
-                # Set the data to the input if it is an array
-                values = super(SparseFunction, key).argument_defaults(alias=alias,
-                                                                      **kwargs)
-                # Take default coordinates values
-                defaults = key.coordinates.argument_defaults(alias=key.coordinates)
-                values.update(defaults.reduce_all())
+            values = super(SparseFunction, key).argument_values(alias=alias, **kwargs)
+            values.update(key.coordinates.argument_values(alias=key.coordinates,
+                                                          **kwargs))
 
         return values
 
