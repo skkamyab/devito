@@ -1023,27 +1023,28 @@ class SparseFunction(TensorFunction):
         :param kwargs: Dictionary of user-provided argument overrides.
         :param alias: (Optional) name under which to store values.
         """
-        # Take a copy of the replacement before super pops it from kwargs
-
-        new = kwargs.get(self.name)
+        values = {}
         key = alias or self
 
-        if new is not None and isinstance(new, SparseFunction):
-            # If we've been replaced with a SparseFunction,
-            # we need to re-derive defaults and values...
-            values = new.argument_defaults(alias=key).reduce_all()
-            values.update(new.coordinates.argument_values(alias=key.coordinates,
-                                                          **kwargs))
-        else:
-            # Set the data to the input if it is an array
-            values = {key.name: key._data_buffer if new is None else new}
-            # Process indices
-            shape = self.shape if new is None else new.shape
-            for i, s, o in zip(self.indices, shape, self.staggered):
-                values.update(i.argument_defaults(size=s+o))
-            # Take default coordinates values
-            defaults = key.coordinates.argument_defaults(alias=key.coordinates)
-            values.update(defaults.reduce_all())
+        # Add value override for own data if it is provided
+        if self.name in kwargs:
+            new = kwargs.pop(self.name)
+            if len(new.shape) != self.ndim:
+                raise ValueError("Array shape %s does not match" % (new.shape, ) +
+                                 "dimensions %s" % (self.indices, ))
+            if isinstance(new, SparseFunction):
+                # If we've been replaced with a SparseFunction,
+                # we need to re-derive defaults and values...
+                values = new.argument_defaults(alias=key).reduce_all()
+                values.update(new.coordinates.argument_values(alias=key.coordinates,
+                                                              **kwargs))
+            else:
+                # Set the data to the input if it is an array
+                values = super(SparseFunction, key).argument_defaults(alias=alias,
+                                                                      **kwargs)
+                # Take default coordinates values
+                defaults = key.coordinates.argument_defaults(alias=key.coordinates)
+                values.update(defaults.reduce_all())
 
         return values
 
