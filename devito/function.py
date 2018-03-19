@@ -307,10 +307,10 @@ class TensorFunction(SymbolicFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = ArgumentMap({key.name: self._data_buffer})
 
+        args = ArgumentMap({key.name: key._data_buffer})
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
+        for i, s, o, k in zip(key.indices, key.shape, key.staggered, key.indices):
             args.update(i.argument_defaults(size=s+o, alias=k))
 
         return args
@@ -324,7 +324,6 @@ class TensorFunction(SymbolicFunction):
         """
         values = {}
         key = alias or self
-
         # Add value override for own data if it is provided
         if self.name in kwargs:
             new = kwargs.pop(self.name)
@@ -333,8 +332,7 @@ class TensorFunction(SymbolicFunction):
                                  "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values[key.name] = new._data_buffer
-                values.update(new.argument_defaults(alias=key).reduce_all())
+                values = new.argument_defaults(alias=new).reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key.name] = new
@@ -1025,11 +1023,17 @@ class SparseFunction(TensorFunction):
         """
         values = {}
         key = alias or self
-
         # Add value override for own data if it is provided
         if self.name in kwargs:
-            values = super(SparseFunction, key).argument_values(alias=alias, **kwargs)
-            values.update(key.coordinates.argument_values(alias=key.coordinates,
+            # Update function value
+            values = super(SparseFunction, key).argument_values(alias=key, **kwargs)
+            # Get coordinates if input is SparseFunction else take self
+            new = kwargs.get(self.name, self)
+            new = new if hasattr(new, 'coordinates') else self
+            # Add new coordinates to kwargs
+            kwargs.update({key.coordinates.name: new.coordinates})
+            # Update values
+            values.update(key.coordinates.argument_values(alias=new.coordinates,
                                                           **kwargs))
 
         return values
