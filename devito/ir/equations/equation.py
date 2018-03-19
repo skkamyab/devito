@@ -25,20 +25,24 @@ class IREq(object):
         return self.lhs.is_Indexed
 
     @property
-    def dimensions(self):
-        return self.dspace.dimensions
-
-    @property
-    def directions(self):
-        return self.ispace.directions
-
-    @property
     def ispace(self):
         return self._ispace
 
     @property
     def dspace(self):
         return self._dspace
+
+    @property
+    def dimensions(self):
+        # Note: some dimensions may be in the iteration space but not in the
+        # data space (e.g., a DerivedDimension); likewise, some dimensions may
+        # be in the data space but not in the iteration space (e.g., when a
+        # function is indexed with integers only)
+        return set(self.dspace.dimensions) | set(self.ispace.dimensions)
+
+    @property
+    def directions(self):
+        return self.ispace.directions
 
 
 class LoweredEq(Eq, IREq):
@@ -116,9 +120,8 @@ class LoweredEq(Eq, IREq):
         # Finally create the LoweredEq with all metadata attached
         expr = super(LoweredEq, cls).__new__(cls, expr.lhs, expr.rhs, evaluate=False)
         expr.is_Increment = getattr(input_expr, 'is_Increment', False)
-        expr.dspace = dspace
-        expr.ispace = ispace
-        expr.dimensions = ordering
+        expr._dspace = dspace
+        expr._ispace = ispace
         expr.reads, expr.writes = detect_io(expr)
 
         return expr
