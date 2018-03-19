@@ -637,12 +637,10 @@ class TestArguments(object):
         op_arguments = op.arguments()
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
-
         # Providing a tensor argument should infer the dimension size from its shape
         op_arguments = op.arguments(b=b1)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt + 1)
-
         # Providing a dimension size explicitly should override the automatically inferred
         op_arguments = op.arguments(b=b1, time=nt - 1)
         assert(op_arguments[time.start_name] == 0)

@@ -309,10 +309,9 @@ class TensorFunction(SymbolicFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-
-        args = ArgumentMap({key.name: key._data_buffer})
+        args = ArgumentMap({key.name: self._data_buffer})
         # Collect default dimension arguments from all indices
-        for i, s, o, k in zip(key.indices, key.shape, key.staggered, key.indices):
+        for i, s, o, k in zip(self.indices, self.shape, self.staggered, key.indices):
             args.update(i.argument_defaults(size=s+o, alias=k))
 
         return args
@@ -334,7 +333,7 @@ class TensorFunction(SymbolicFunction):
                                  "dimensions %s" % (self.indices, ))
             if isinstance(new, TensorFunction):
                 # Set new values and re-derive defaults
-                values = new.argument_defaults(alias=new).reduce_all()
+                values = new.argument_defaults(alias=key).reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
                 values[key.name] = new
@@ -1011,8 +1010,8 @@ class SparseFunction(TensorFunction):
         :param alias: (Optional) name under which to store values.
         """
         key = alias or self
-        args = super(SparseFunction, key).argument_defaults(alias=alias)
-        args.update(key.coordinates.argument_defaults(alias=key.coordinates))
+        args = super(SparseFunction, self).argument_defaults(alias=key)
+        args.update(self.coordinates.argument_defaults(alias=key.coordinates))
 
         return args
 
@@ -1035,7 +1034,7 @@ class SparseFunction(TensorFunction):
             # Add new coordinates to kwargs
             kwargs.update({key.coordinates.name: new.coordinates})
             # Update values
-            values.update(key.coordinates.argument_values(alias=new.coordinates,
+            values.update(new.coordinates.argument_values(alias=key.coordinates,
                                                           **kwargs))
 
         return values
