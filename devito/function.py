@@ -1015,30 +1015,6 @@ class SparseFunction(TensorFunction):
 
         return args
 
-    def argument_values(self, alias=None, **kwargs):
-        """
-        Returns a map of argument values after evaluating user input.
-
-        :param kwargs: Dictionary of user-provided argument overrides.
-        :param alias: (Optional) name under which to store values.
-        """
-        values = {}
-        key = alias or self
-        # Add value override for own data if it is provided
-        if self.name in kwargs:
-            # Update function value
-            values = super(SparseFunction, key).argument_values(alias=key, **kwargs)
-            # Get coordinates if input is SparseFunction else take self
-            new = kwargs.get(self.name, self)
-            new = new if hasattr(new, 'coordinates') else self
-            # Add new coordinates to kwargs
-            kwargs.update({key.coordinates.name: new.coordinates})
-            # Update values
-            values.update(new.coordinates.argument_values(alias=key.coordinates,
-                                                          **kwargs))
-
-        return values
-
 
 class SparseTimeFunction(SparseFunction):
     """
