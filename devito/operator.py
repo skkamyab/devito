@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
+from cached_property import cached_property
 import ctypes
 import numpy as np
 import sympy
@@ -11,7 +12,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import rewrite
 from devito.exceptions import InvalidOperator
-from devito.logger import bar, info
+from devito.logger import bar, info, warning
 from devito.ir.equations import LoweredEq
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Callable, List, MetaCall, iet_build, iet_insert_C_decls,
@@ -159,12 +160,25 @@ class Operator(Callable):
         args[self.profiler.name] = self.profiler.new()
 
         # Add in any backend-specific argument
-        args.update(kwargs.get('backend', {}))
+        args.update(kwargs.pop('backend', {}))
 
         # Execute autotuning and adjust arguments accordingly
-        if kwargs.get('autotune', False):
+        if kwargs.pop('autotune', False):
             args = self._autotune(args)
+
+        # Check all user-provided keywords are known to the Operator
+        for k, v in kwargs.items():
+            if k not in self.known_arguments:
+                warning("Unrecognized argument %s=%s passed to `apply`" % (k, v))
+
         return args
+
+    @cached_property
+    def known_arguments(self):
+        """Return an iterable of arguments that can be passed to ``apply``
+        when running the operator."""
+        ret = set.union(*[set(i._arg_names) for i in self.input + self.dimensions])
+        return tuple(sorted(ret))
 
     def arguments(self, **kwargs):
         args = self.prepare_arguments(**kwargs)
